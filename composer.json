@@ -1,0 +1,33 @@
+{
+    "name": "iltumio/siwe-php",
+    "description": "Sign In With Ethereum porting for PHP",
+    "type": "library",
+    "require": {
+        "kornrunner/keccak": "^1.1",
+        "simplito/elliptic-php": "^1.0",
+        "guzzlehttp/promises": "^2.0"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Iltumio\\SiwePhp\\": "src/"
+        },
+        "classmap": [
+            "src/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Iltumio\\SiwePhp\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "iltumio.eth",
+            "email": "manuel.tumiati@knobs.it"
+        }
+    ],
+    "require-dev": {
+        "phpunit/phpunit": "^9.6"
+    }
+}
