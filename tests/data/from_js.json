@@ -1,0 +1,11 @@
+{
+    "domain": "test.xyz",
+    "address": "0x6552AB46e80776D21de19f26941a934c37d5cEa0",
+    "statement": "accept ToS",
+    "uri": "https://test.xyz/tos",
+    "version": "1",
+    "chainId": 1,
+    "nonce": "2FiHcIypgCMDdf078",
+    "issuedAt": "2023-12-11T17:23:09.137Z",
+    "signature": "0x096e7e2e7da018ee9625c2b6128beeecfd3fb0267512dfc9ce63caa29e73706f627f986851e87be649a5fef901ec1d753b52629c2ecf11901f3d56b560ece7f31b"
+}
