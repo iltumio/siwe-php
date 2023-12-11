@@ -3,7 +3,7 @@
 namespace Iltumio\SiwePhp;
 
 use GuzzleHttp\Promise\Promise;
-use DateTime;
+use Carbon\Carbon;
 use Error;
 
 require __DIR__ . "/utils.php";
@@ -115,8 +115,8 @@ class SiweMessage
         $nonceField = "Nonce: $this->nonce";
 
         if (!$this->issuedAt) {
-            $now = new DateTime();
-            $this->issuedAt = $now->format(DateTime::ATOM);
+            $now = Carbon::now();
+            $this->issuedAt = $now->format(Carbon::ATOM);
         }
 
         $issuedAtField = "Issued At: $this->issuedAt";
@@ -174,10 +174,14 @@ class SiweMessage
                 }
             };
 
+            if (isset($opts["debug"]) && $opts["debug"]) {
+                print_r($params);
+            }
+
             $invalidParams = checkInvalidKeys($params, VerifyParamsKeys);
 
             if (count($invalidParams) > 0) {
-                $fail(array(
+                return $fail(array(
                     "success" => false,
                     "data" => $this,
                     "error" => new Error(implode(", ", $invalidParams) . " is/are not valid key(s) for VerifyOpts."),
@@ -190,7 +194,7 @@ class SiweMessage
             $time = $params["time"];
 
             if ($domain && $domain != $this->domain) {
-                $fail(array(
+                return $fail(array(
                     "success" => false,
                     "data" => $this,
                     "error" => new Error("Domain does not match."),
@@ -198,7 +202,7 @@ class SiweMessage
             }
 
             if ($nonce && $nonce != $this->nonce) {
-                $fail(array(
+                return $fail(array(
                     "success" => false,
                     "data" => $this,
                     "error" => new Error("Nonce does not match."),
@@ -206,13 +210,13 @@ class SiweMessage
             }
 
             /** Check time or now */
-            $checkTime = $time ? new DateTime($time) : new DateTime();
+            $checkTime = $time ? new Carbon($time) : new Carbon();
 
             /** Message not expired */
             if ($this->expirationTime) {
-                $expirationTime = new DateTime($this->expirationTime);
-                if ($expirationTime->getTimestamp() < $checkTime->getTimestamp()) {
-                    $fail(array(
+                $expirationTime = new Carbon($this->expirationTime);
+                if ($checkTime->getTimestamp() >= $expirationTime->getTimestamp()) {
+                    return $fail(array(
                         "success" => false,
                         "data" => $this,
                         "error" => new Error("Message expired."),
@@ -222,9 +226,9 @@ class SiweMessage
 
             /** Message is valid already */
             if ($this->notBefore) {
-                $notBefore = new DateTime($this->notBefore);
-                if ($notBefore->getTimestamp() > $checkTime->getTimestamp()) {
-                    $fail(array(
+                $notBefore = new Carbon($this->notBefore);
+                if ($checkTime->getTimestamp() < $notBefore->getTimestamp()) {
+                    return $fail(array(
                         "success" => false,
                         "data" => $this,
                         "error" => new Error("Message is not valid yet."),
@@ -235,7 +239,7 @@ class SiweMessage
             try {
                 $EIP4361Message = $this->prepareMessage();
             } catch (Error $e) {
-                $fail(array(
+                return $fail(array(
                     "success" => false,
                     "data" => $this,
                     "error" => new Error("unable to prepare message"),
@@ -246,7 +250,7 @@ class SiweMessage
             try {
                 $addr = verifyMessage($EIP4361Message, $signature);
             } catch (Error $e) {
-                $fail(array(
+                return $fail(array(
                     "success" => false,
                     "data" => $this,
                     // "error" => $e,
@@ -255,13 +259,13 @@ class SiweMessage
             }
 
             if (strtolower($addr) == strtolower($this->address)) {
-                $promise->resolve(array(
+                return $promise->resolve(array(
                     "success" => true,
                     "data" => $this,
                 ));
             } else {
                 // TODO: check contract wallet signature
-                $fail(array(
+                return $fail(array(
                     "success" => false,
                     "data" => $this,
                     "error" => new Error("Signature does not match."),

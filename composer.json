@@ -5,7 +5,8 @@
     "require": {
         "kornrunner/keccak": "^1.1",
         "simplito/elliptic-php": "^1.0",
-        "guzzlehttp/promises": "^2.0"
+        "guzzlehttp/promises": "^2.0",
+        "nesbot/carbon": "^2.72"
     },
     "license": "MIT",
     "autoload": {
