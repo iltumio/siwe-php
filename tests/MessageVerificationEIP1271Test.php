@@ -17,7 +17,6 @@ final class MessageVerificationEIP1271Test extends TestCase
 
         foreach ($EIP1271 as $testTitle => $data) {
             $siweMessage = new SiweMessage($data["message"]);
-            file_put_contents(__DIR__ . "message.txt", $data["message"]);
 
             $promise = $siweMessage->verify(array(
                 "signature" => $data["signature"],
