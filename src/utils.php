@@ -4,7 +4,12 @@ namespace Iltumio\SiwePhp;
 
 use kornrunner\Keccak;
 use Elliptic\EC;
-use DateTime;
+
+use Web3\Web3;
+use Web3\Providers\HttpProvider;
+use Web3\RequestManagers\HttpRequestManager;
+use Web3\Contract;
+use GuzzleHttp\Promise\Promise;
 
 function isEIP55Address($address)
 {
@@ -55,9 +60,6 @@ function toResourcesString($resources = [])
             $ret .= "\n";
         }
     }
-    // foreach ($resources as $resource) {
-    //     $ret .= "- " . $resource . "\n";
-    // }
     return $ret;
 }
 
@@ -73,19 +75,6 @@ function hashMessage($message)
     $messageHash = Keccak::hash(ETHEREUM_MESSAGE_PREFIX . $messageLength . $message, 256);
     return $messageHash;
 }
-
-// function verifyMessage($message, $sig)
-// {
-//     $messageHash = hashMessage($message);
-//     $signature   = ["r" => substr($sig, 2, 64), "s" => substr($sig, 66, 64)];
-//     $recid  = (ord(hex2bin(substr($sig, 130, 2))) - 27);
-//     $adjustedRecid = $recid & 1;
-//     // if ($recid != ($recid & 1)) return false;
-//     echo $recid . "($adjustedRecid)\n";
-//     $ec = new EC('secp256k1');
-//     $publicKey = $ec->recoverPubKey($messageHash, $signature, $adjustedRecid);
-//     return "0x" . substr(Keccak::hash(substr(hex2bin($publicKey->encode("hex")), 1), 256), 24);
-// }
 
 function verifyMessage($message, $sig)
 {
@@ -104,4 +93,45 @@ function verifyMessage($message, $sig)
     $recoveredAddress =  "0x" . substr(Keccak::hash(substr(hex2bin($recoveredKey->encode("hex")), 1), 256), 24);
 
     return $recoveredAddress;
+}
+
+function checkContractWalletSignature(SiweMessage $message, string $signature, string $providerUrl = ""): bool
+{
+    if (!$providerUrl || filter_var($providerUrl, FILTER_VALIDATE_URL) == false) {
+        return false;
+    }
+
+    $web3 = new Web3(new HttpProvider(new HttpRequestManager($providerUrl, 10)));
+    $contract = new Contract($web3->provider, EIP1271_ABI);
+    $walletContract = $contract->at($message->address);
+    $hashedMessage = hashMessage($message->prepareMessage());
+
+    $promise = new Promise(function () use (
+        &$promise,
+        &$walletContract,
+        &$hashedMessage,
+        &$signature
+    ) {
+        $params = ["isValidSignature"];
+        $params = array_merge($params, [$hashedMessage, substr($signature, 2)]);
+
+        $params[] = function ($err, $result) use (&$promise) {
+            if ($err !== null) {
+                $promise->reject($err);
+            } else {
+                $promise->resolve($result);
+            }
+        };
+        $walletContract->call(...$params);
+    });
+
+    $result = $promise->wait();
+
+    if (!isset($result["magicValue"])) {
+        return false;
+    }
+
+    $magicValue = $result["magicValue"];
+
+    return $magicValue == EIP1271_MAGICVALUE;
 }

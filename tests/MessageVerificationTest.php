@@ -7,7 +7,7 @@ use Iltumio\SiwePhp\SiweMessage;
 
 final class MessageVerificationTest extends TestCase
 {
-    public function verify($data, $suppressExceptions = false, $debug = false)
+    public function verify($data, $suppressExceptions = false)
     {
         $siweMessage = new SiweMessage($data);
 
@@ -36,7 +36,6 @@ final class MessageVerificationTest extends TestCase
             "nonce" => $nonce,
         ), array(
             "suppressExceptions" => $suppressExceptions,
-            "debug" => $debug,
         ));
 
         return $promise;
