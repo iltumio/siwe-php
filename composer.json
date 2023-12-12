@@ -6,7 +6,8 @@
         "kornrunner/keccak": "^1.1",
         "simplito/elliptic-php": "^1.0",
         "guzzlehttp/promises": "^2.0",
-        "nesbot/carbon": "^2.72"
+        "nesbot/carbon": "^2.72",
+        "web3p/web3.php": "dev-master"
     },
     "license": "MIT",
     "autoload": {

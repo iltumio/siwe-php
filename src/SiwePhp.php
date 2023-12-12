@@ -27,7 +27,9 @@ class SiweMessage
     function __construct($param)
     {
         if (is_string($param)) {
-            $parsedMessage = json_decode($param, true);
+            $parser = new SiweParser();
+
+            $parsedMessage = $parser->parse($param);
             $this->fromParsedMessage($parsedMessage);
         } else {
             $this->fromParsedMessage($param);
@@ -174,10 +176,6 @@ class SiweMessage
                 }
             };
 
-            if (isset($opts["debug"]) && $opts["debug"]) {
-                print_r($params);
-            }
-
             $invalidParams = checkInvalidKeys($params, VerifyParamsKeys);
 
             if (count($invalidParams) > 0) {
@@ -189,9 +187,21 @@ class SiweMessage
             }
 
             $signature = $params["signature"];
-            $domain = $params["domain"];
-            $nonce = $params["nonce"];
-            $time = $params["time"];
+            $domain = "";
+            $nonce = "";
+            $time = "";
+
+            if (isset($params["domain"])) {
+                $domain = $params["domain"];
+            }
+
+            if (isset($params["nonce"])) {
+                $nonce = $params["nonce"];
+            }
+
+            if (isset($params["time"])) {
+                $time = $params["time"];
+            }
 
             if ($domain && $domain != $this->domain) {
                 return $fail(array(
@@ -264,12 +274,20 @@ class SiweMessage
                     "data" => $this,
                 ));
             } else {
-                // TODO: check contract wallet signature
-                return $fail(array(
-                    "success" => false,
-                    "data" => $this,
-                    "error" => new Error("Signature does not match."),
-                ));
+                $isValid = checkContractWalletSignature($this, $signature, $opts["providerUrl"]);
+
+                if ($isValid) {
+                    return $promise->resolve(array(
+                        "success" => true,
+                        "data" => $this,
+                    ));
+                } else {
+                    return $fail(array(
+                        "success" => false,
+                        "data" => $this,
+                        "error" => new Error("Signature does not match."),
+                    ));
+                }
             }
         });
 
