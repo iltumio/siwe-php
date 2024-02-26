@@ -4,10 +4,10 @@
     "type": "library",
     "require": {
         "kornrunner/keccak": "^1.1",
-        "simplito/elliptic-php": "^1.0",
+        "simplito/elliptic-php": "^1.0.12",
         "guzzlehttp/promises": "^2.0",
         "nesbot/carbon": "^2.72",
-        "web3p/web3.php": "dev-master"
+        "web3p/web3.php": "0.3.2"
     },
     "license": "MIT",
     "autoload": {

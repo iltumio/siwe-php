@@ -16,7 +16,7 @@ class SiweMessage
     public $statement = null;
     public $uri = "";
     public $version = "";
-    public $chainId = 0;
+    public $chainId = null;
     public $nonce = "";
     public $issuedAt = null;
     public $expirationTime = null;
@@ -103,6 +103,8 @@ class SiweMessage
         $prefix = $header . "\n" . $this->address;
         $versionField = "Version: $this->version";
 
+        // Needed to achieve parity with the original js library
+        // const chainField = `Chain ID: ` + this.chainId || "1";
         if (!$this->chainId) {
             $this->chainId = 1;
         }
@@ -263,7 +265,7 @@ class SiweMessage
                 return $fail(array(
                     "success" => false,
                     "data" => $this,
-                    // "error" => $e,
+                    "error" => $e,
                     "error" => new Error("Unable to recover address")
                 ));
             }
@@ -274,7 +276,12 @@ class SiweMessage
                     "data" => $this,
                 ));
             } else {
-                $isValid = checkContractWalletSignature($this, $signature, $opts["providerUrl"]);
+                $providerUrl = DEFAULT_PROVIDER_URL;
+                if (isset($opts["providerUrl"])) {
+                    $providerUrl = $opts["providerUrl"];
+                }
+
+                $isValid = checkContractWalletSignature($this, $signature, $providerUrl);
 
                 if ($isValid) {
                     return $promise->resolve(array(
@@ -352,7 +359,7 @@ class SiweMessage
         /** `expirationTime` conforms to ISO-8601 and is a valid date. */
         if (
             isset($this->expirationTime)
-            && !isValidISO8601Date($this->expirationTime)
+            && !isValidISO8601Date($this->expirationTime, "expiration")
         ) {
             throw new \Exception("$this->expirationTime to be a valid ISO-8601 date.");
         }

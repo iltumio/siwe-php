@@ -2,12 +2,12 @@
 
 namespace Iltumio\SiwePhp;
 
+use DateTime;
 use kornrunner\Keccak;
 use Elliptic\EC;
 
 use Web3\Web3;
 use Web3\Providers\HttpProvider;
-use Web3\RequestManagers\HttpRequestManager;
 use Web3\Contract;
 use GuzzleHttp\Promise\Promise;
 
@@ -35,15 +35,34 @@ function isEIP55Address($address)
     return $address == $ret;
 }
 
+function validateDate($date)
+{
+    $dt = new DateTime($date);
+    if (!$dt) {
+        return false;
+    }
+
+    $errors = DateTime::getLastErrors();
+    if ($errors && $errors['warning_count'] > 0) {
+        return false;
+    }
+
+    return true;
+}
+
 function isValidISO8601Date($dateString)
 {
-    $regex = '/^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24\:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/';
     if (!is_string($dateString))
         return false;
 
+    $regex = '/^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24\:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/';
     $match = preg_match($regex, $dateString);
 
-    return $match == 1;
+    if ($match != 1) {
+        return false;
+    }
+
+    return validateDate($dateString);
 }
 
 function generateNonce()
@@ -101,7 +120,7 @@ function checkContractWalletSignature(SiweMessage $message, string $signature, s
         return false;
     }
 
-    $web3 = new Web3(new HttpProvider(new HttpRequestManager($providerUrl, 10)));
+    $web3 = new Web3(new HttpProvider($providerUrl));
     $contract = new Contract($web3->provider, EIP1271_ABI);
     $walletContract = $contract->at($message->address);
     $hashedMessage = hashMessage($message->prepareMessage());

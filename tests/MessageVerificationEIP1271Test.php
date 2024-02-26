@@ -5,6 +5,8 @@ namespace iltumio\SiwePhp\Tests;
 use PHPUnit\Framework\TestCase;
 use Iltumio\SiwePhp\SiweMessage;
 
+use const Iltumio\SiwePhp\DEFAULT_PROVIDER_URL;
+
 require __DIR__ . "../../src/siwe-parser/SiweParser.php";
 
 final class MessageVerificationEIP1271Test extends TestCase
@@ -22,7 +24,7 @@ final class MessageVerificationEIP1271Test extends TestCase
                 "signature" => $data["signature"],
             ), array(
                 "suppressExceptions" => false,
-                "providerUrl" => "https://mainnet.infura.io/v3/84842078b09946638c03157f83405213"
+                "providerUrl" => DEFAULT_PROVIDER_URL
             ));
 
             $result = $promise->wait();

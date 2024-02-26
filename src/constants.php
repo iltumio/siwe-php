@@ -11,7 +11,6 @@ const VerifyParamsKeys = [
 
 const ETHEREUM_MESSAGE_PREFIX = "\x19Ethereum Signed Message:\n";
 
-// function isValidSignature(bytes32 _message, bytes _signature) public view returns (bytes4)
 const EIP1271_ABI = '
     [
         {
@@ -42,3 +41,5 @@ const EIP1271_ABI = '
 ';
 
 const EIP1271_MAGICVALUE = '0x1626ba7e';
+
+const DEFAULT_PROVIDER_URL = 'https://mainnet.infura.io/v3/84842078b09946638c03157f83405213';
