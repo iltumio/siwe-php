@@ -2,7 +2,7 @@
     "name": "iltumio/siwe-php",
     "description": "Sign In With Ethereum porting for PHP",
     "type": "library",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "require": {
         "kornrunner/keccak": "^1.1",
         "simplito/elliptic-php": "^1.0.12",
