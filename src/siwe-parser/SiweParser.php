@@ -98,34 +98,22 @@ class SiweParser
 
     function __construct()
     {
-        global $SIWE_URI_LINE_REGEX;
-        global $SIWE_ISSUED_AT_REGEX;
-        global $SIWE_EXPIRATION_TIME_REGEX;
-        global $SIWE_NOT_BEFORE_REGEX;
-        global $SIWE_REQUEST_ID_REGEX;
-        global $SIWE_RESOURCES_REGEX;
-        global $SIWE_DOMAIN_REGEX;
-        global $SIWE_ADDRESS_REGEX;
-        global $SIWE_STATEMENT_REGEX;
-        global $SIWE_VERSION_REGEX;
-        global $SIWE_CHAIN_ID_REGEX;
-        global $SIWE_NONCE_REGEX;
 
         $this->grammar = new Grammar(
             "SIWEMessage",
             array(
-                new Rule(SiweMessageField::DOMAIN, $SIWE_DOMAIN_REGEX, true),
-                new Rule(SiweMessageField::ADDRESS, $SIWE_ADDRESS_REGEX, true),
-                new Rule(SiweMessageField::STATEMENT, $SIWE_STATEMENT_REGEX, false),
-                new Rule(SiweMessageField::URI, $SIWE_URI_LINE_REGEX, true),
-                new Rule(SiweMessageField::VERSION, $SIWE_VERSION_REGEX, true),
-                new Rule(SiweMessageField::CHAIN_ID, $SIWE_CHAIN_ID_REGEX, true),
-                new Rule(SiweMessageField::NONCE, $SIWE_NONCE_REGEX, true),
-                new Rule(SiweMessageField::ISSUED_AT, $SIWE_ISSUED_AT_REGEX, true),
-                new Rule(SiweMessageField::EXPIRATION_TIME, $SIWE_EXPIRATION_TIME_REGEX, false),
-                new Rule(SiweMessageField::NOT_BEFORE, $SIWE_NOT_BEFORE_REGEX, false),
-                new Rule(SiweMessageField::REQUEST_ID, $SIWE_REQUEST_ID_REGEX, false),
-                new Rule(SiweMessageField::RESOURCES, $SIWE_RESOURCES_REGEX, false),
+                new Rule(SiweMessageField::DOMAIN, SIWE_DOMAIN_REGEX, true),
+                new Rule(SiweMessageField::ADDRESS, SIWE_ADDRESS_REGEX, true),
+                new Rule(SiweMessageField::STATEMENT, SIWE_STATEMENT_REGEX, false),
+                new Rule(SiweMessageField::URI, SIWE_URI_LINE_REGEX, true),
+                new Rule(SiweMessageField::VERSION, SIWE_VERSION_REGEX, true),
+                new Rule(SiweMessageField::CHAIN_ID, SIWE_CHAIN_ID_REGEX, true),
+                new Rule(SiweMessageField::NONCE, SIWE_NONCE_REGEX, true),
+                new Rule(SiweMessageField::ISSUED_AT, SIWE_ISSUED_AT_REGEX, true),
+                new Rule(SiweMessageField::EXPIRATION_TIME, SIWE_EXPIRATION_TIME_REGEX, false),
+                new Rule(SiweMessageField::NOT_BEFORE, SIWE_NOT_BEFORE_REGEX, false),
+                new Rule(SiweMessageField::REQUEST_ID, SIWE_REQUEST_ID_REGEX, false),
+                new Rule(SiweMessageField::RESOURCES, SIWE_RESOURCES_REGEX, false),
             )
         );
     }
