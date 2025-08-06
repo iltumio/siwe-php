@@ -16,6 +16,8 @@ final class MessageVerificationEIP1271Test extends TestCase
         $rawFile = file_get_contents(__DIR__ .  "/data/eip1271.json");
         $EIP1271 = json_decode($rawFile, true);
 
+        // Use a public node that doesn't require API key
+        $publicNode = "https://ethereum.publicnode.com";
 
         foreach ($EIP1271 as $testTitle => $data) {
             $siweMessage = new SiweMessage($data["message"]);
@@ -24,13 +26,11 @@ final class MessageVerificationEIP1271Test extends TestCase
                 "signature" => $data["signature"],
             ), array(
                 "suppressExceptions" => false,
-                "providerUrl" => DEFAULT_PROVIDER_URL
+                "providerUrl" => $publicNode
             ));
 
             $result = $promise->wait();
-
             $success = $result["success"];
-
             $this->assertSame($success, true, "Failed $testTitle");
         }
     }
