@@ -4,7 +4,7 @@ namespace Iltumio\SiwePhp;
 
 use SiweMessageField;
 
-require __DIR__ . "/parser_utils.php";
+require_once __DIR__ . "/parser_utils.php";
 
 class Rule
 {
@@ -93,63 +93,37 @@ class Grammar
 
 class SiweParser
 {
-    /** @var Grammar */
-    private $grammar;
-
-    function __construct()
+    /** Parse the entire message; reject unknown, repeated or out-of-order fields. */
+    public function parse(string $input): array
     {
+        $pattern = '~\A(?P<domain>[^\s/?#]+) wants you to sign in with your Ethereum account:\n'
+            . '(?P<address>0x[0-9a-fA-F]{40})\n\n'
+            . '(?:(?P<statement>[^\r\n]+)\n)?\n'
+            . 'URI: (?P<uri>[^\r\n]+)\nVersion: (?P<version>1)\n'
+            . 'Chain ID: (?P<chainId>[0-9]+)\nNonce: (?P<nonce>[a-zA-Z0-9]{8,})\n'
+            . 'Issued At: (?P<issuedAt>[^\r\n]+)'
+            . '(?:\nExpiration Time: (?P<expirationTime>[^\r\n]+))?'
+            . '(?:\nNot Before: (?P<notBefore>[^\r\n]+))?'
+            . '(?:\nRequest ID: (?P<requestId>[^\r\n]*))?'
+            . '(?:\nResources:(?P<resources>(?:\n- [^\r\n]+)*))?\z~';
 
-        $this->grammar = new Grammar(
-            "SIWEMessage",
-            array(
-                new Rule(SiweMessageField::DOMAIN, SIWE_DOMAIN_REGEX, true),
-                new Rule(SiweMessageField::ADDRESS, SIWE_ADDRESS_REGEX, true),
-                new Rule(SiweMessageField::STATEMENT, SIWE_STATEMENT_REGEX, false),
-                new Rule(SiweMessageField::URI, SIWE_URI_LINE_REGEX, true),
-                new Rule(SiweMessageField::VERSION, SIWE_VERSION_REGEX, true),
-                new Rule(SiweMessageField::CHAIN_ID, SIWE_CHAIN_ID_REGEX, true),
-                new Rule(SiweMessageField::NONCE, SIWE_NONCE_REGEX, true),
-                new Rule(SiweMessageField::ISSUED_AT, SIWE_ISSUED_AT_REGEX, true),
-                new Rule(SiweMessageField::EXPIRATION_TIME, SIWE_EXPIRATION_TIME_REGEX, false),
-                new Rule(SiweMessageField::NOT_BEFORE, SIWE_NOT_BEFORE_REGEX, false),
-                new Rule(SiweMessageField::REQUEST_ID, SIWE_REQUEST_ID_REGEX, false),
-                new Rule(SiweMessageField::RESOURCES, SIWE_RESOURCES_REGEX, false),
-            )
-        );
-    }
-
-    function parse(string $input)
-    {
-        $result = $this->grammar->parse($input);
-
-        if (strlen($result[SiweMessageField::DOMAIN]) == 0) {
-            throw new \Exception("Domain cannot be empty.");
+        if (preg_match($pattern, $input, $matches, PREG_UNMATCHED_AS_NULL) !== 1) {
+            throw new \InvalidArgumentException('Invalid SIWE message format.');
         }
 
-        if (!isEIP55Address($result[SiweMessageField::ADDRESS])) {
-            throw new \Exception("Address not conformant to EIP-55.");
-        }
-
-        if (!$result[SiweMessageField::CHAIN_ID]) {
-            throw new \Exception("Chain ID cannot be empty.");
-        }
-
-        if (!$result[SiweMessageField::ISSUED_AT]) {
-            throw new \Exception("Issued At cannot be empty.");
-        }
-
-        if (isset($result[SiweMessageField::RESOURCES])) {
-            $resources = array_map(function ($resource) {
-                return trim($resource, "- ");
-            }, explode("\n", $result[SiweMessageField::RESOURCES]));
-
-            foreach ($resources as $resource) {
-                if (!filter_var($resource, FILTER_VALIDATE_URL)) {
-                    throw new \Exception("Resource $resource is not a valid URL.");
-                }
+        $result = [];
+        foreach ($matches as $field => $value) {
+            if (is_string($field) && $value !== null) {
+                $result[$field] = $value;
             }
         }
-
+        if (isset($result['resources'])) {
+            $result['resources'] = $result['resources'] === '' ? []
+                : array_map(static fn ($line) => substr($line, 2), explode("\n", substr($result['resources'], 1)));
+        }
+        if (!isEIP55Address($result['address'])) {
+            throw new \InvalidArgumentException('Address not conformant to EIP-55.');
+        }
         return $result;
     }
 }

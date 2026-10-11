@@ -5,14 +5,16 @@ namespace iltumio\SiwePhp\Tests;
 use PHPUnit\Framework\TestCase;
 use Iltumio\SiwePhp\SiweMessage;
 
-use const Iltumio\SiwePhp\DEFAULT_PROVIDER_URL;
 
-require __DIR__ . "../../src/siwe-parser/SiweParser.php";
+
 
 final class MessageVerificationEIP1271Test extends TestCase
 {
     public function testVerificationEIP1271(): void
     {
+        if (!getenv('SIWE_RPC_URL')) {
+            $this->markTestSkipped('Set SIWE_RPC_URL to run the mainnet integration test.');
+        }
         $rawFile = file_get_contents(__DIR__ .  "/data/eip1271.json");
         $EIP1271 = json_decode($rawFile, true);
 
@@ -24,7 +26,7 @@ final class MessageVerificationEIP1271Test extends TestCase
                 "signature" => $data["signature"],
             ), array(
                 "suppressExceptions" => false,
-                "providerUrl" => DEFAULT_PROVIDER_URL
+                "providerUrl" => getenv("SIWE_RPC_URL")
             ));
 
             $result = $promise->wait();

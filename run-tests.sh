@@ -1,21 +1,10 @@
-!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
 
-# check if composer.json and phpunit.xml exist
-if [ ! -f "composer.json" ]; then
-    echo "composer.json not found"
-    exit 1
+if [ ! -f vendor/autoload.php ]; then
+    composer install --no-interaction
 fi
 
-# check if phpunit.xml exists
-if [ ! -f "phpunit.xml" ]; then
-    echo "phpunit.xml not found"
-    exit 1
-fi
-
-# if there is no vendor directory, run composer install
-if [ ! -d "vendor" ]; then
-    composer install
-fi
 composer dump-autoload
-
-./vendor/bin/phpunit
+exec ./vendor/bin/phpunit "$@"

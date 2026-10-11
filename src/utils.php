@@ -6,14 +6,12 @@ use DateTime;
 use kornrunner\Keccak;
 use Elliptic\EC;
 
-use Web3\Web3;
-use Web3\Providers\HttpProvider;
-use Web3\Contract;
-use GuzzleHttp\Promise\Promise;
+use GuzzleHttp\Client;
+use GuzzleHttp\ClientInterface;
 
 function isEIP55Address($address)
 {
-    if (strlen($address) != 42) {
+    if (!is_string($address) || !preg_match('/\A0x[0-9a-fA-F]{40}\z/', $address)) {
         return false;
     }
 
@@ -37,49 +35,31 @@ function isEIP55Address($address)
 
 function validateDate($date)
 {
-    $dt = new DateTime($date);
-    if (!$dt) {
+    try {
+        $dt = new DateTime($date);
+    } catch (\Exception $e) {
         return false;
     }
 
     $errors = DateTime::getLastErrors();
-    if ($errors && $errors['warning_count'] > 0) {
-        return false;
-    }
-
-    return true;
+    return $errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0);
 }
 
 function isValidISO8601Date($dateString)
 {
-    if (!is_string($dateString))
-        return false;
-
-    $regex = '/^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24\:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/';
-    $match = preg_match($regex, $dateString);
-
-    if ($match != 1) {
-        return false;
-    }
-
-    return validateDate($dateString);
+    return is_string($dateString)
+        && preg_match('/\A\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])[Tt](?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:[Zz]|[+-](?:[01]\d|2[0-3]):[0-5]\d)\z/', $dateString) === 1
+        && validateDate($dateString);
 }
 
 function generateNonce()
 {
-    return random_bytes(96);
+    return bin2hex(random_bytes(16));
 }
 
 function toResourcesString($resources = [])
 {
-    $ret = "Resources:\n";
-    for ($i = 0; $i < count($resources); $i++) {
-        $ret .= "- " . $resources[$i];
-        if ($i < count($resources) - 1) {
-            $ret .= "\n";
-        }
-    }
-    return $ret;
+    return "Resources:\n" . implode("\n", array_map(static fn ($resource) => "- " . $resource, $resources));
 }
 
 function checkInvalidKeys($obj, $keys = [])
@@ -97,13 +77,20 @@ function hashMessage($message)
 
 function verifyMessage($message, $sig)
 {
+    if (!is_string($sig) || !preg_match('/\A0x[0-9a-fA-F]{130}\z/', $sig)) {
+        throw new \InvalidArgumentException("Expected a 65-byte hexadecimal EOA signature.");
+    }
     $messageHash = hashMessage($message);
     $signature   = ["r" => substr($sig, 2, 64), "s" => substr($sig, 66, 64)];
     $recoveryId = hexdec(substr($sig, 130, 2));
 
-    // TODO: check if this method is correct
+    // Accept both Ethereum (27/28) and raw (0/1) recovery IDs.
     if ($recoveryId >= 27) {
         $recoveryId -= 27;
+    }
+
+    if ($recoveryId !== 0 && $recoveryId !== 1) {
+        throw new \InvalidArgumentException("Invalid signature recovery ID.");
     }
 
     // ECDSA Recovery
@@ -114,43 +101,45 @@ function verifyMessage($message, $sig)
     return $recoveredAddress;
 }
 
-function checkContractWalletSignature(SiweMessage $message, string $signature, string $providerUrl = ""): bool
-{
-    if (!$providerUrl || filter_var($providerUrl, FILTER_VALIDATE_URL) == false) {
+/** Verify EIP-1271 via eth_call on the provider for the message's chain. */
+function checkContractWalletSignature(
+    SiweMessage $message,
+    string $signature,
+    string $providerUrl = "",
+    ?ClientInterface $client = null
+): bool {
+    if (!filter_var($providerUrl, FILTER_VALIDATE_URL)
+        || !in_array(parse_url($providerUrl, PHP_URL_SCHEME), ['http', 'https'], true)
+        || !preg_match('/\A0x(?:[0-9a-fA-F]{2})*\z/', $signature)) {
         return false;
     }
 
-    $web3 = new Web3(new HttpProvider($providerUrl));
-    $contract = new Contract($web3->provider, EIP1271_ABI);
-    $walletContract = $contract->at($message->address);
-    $hashedMessage = hashMessage($message->prepareMessage());
+    // ABI: isValidSignature(bytes32,bytes). The dynamic bytes begin at offset 64.
+    $bytes = substr($signature, 2);
+    $data = EIP1271_MAGICVALUE . hashMessage($message->prepareMessage())
+        . str_pad('40', 64, '0', STR_PAD_LEFT)
+        . str_pad(dechex(intdiv(strlen($bytes), 2)), 64, '0', STR_PAD_LEFT)
+        . str_pad($bytes, (int) (ceil(strlen($bytes) / 64) * 64), '0');
 
-    $promise = new Promise(function () use (
-        &$promise,
-        &$walletContract,
-        &$hashedMessage,
-        &$signature
-    ) {
-        $params = ["isValidSignature"];
-        $params = array_merge($params, [$hashedMessage, substr($signature, 2)]);
-
-        $params[] = function ($err, $result) use (&$promise) {
-            if ($err !== null) {
-                $promise->reject($err);
-            } else {
-                $promise->resolve($result);
-            }
-        };
-        $walletContract->call(...$params);
-    });
-
-    $result = $promise->wait();
-
-    if (!isset($result["magicValue"])) {
+    try {
+        $client ??= new Client();
+        $response = $client->request('POST', $providerUrl, [
+            'timeout' => 10,
+            'connect_timeout' => 5,
+            'allow_redirects' => false,
+            'json' => [
+                'jsonrpc' => '2.0',
+                'id' => 1,
+                'method' => 'eth_call',
+                'params' => [['to' => $message->address, 'data' => $data], 'latest'],
+            ],
+        ]);
+        $result = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        // ABI bytes4 is right-padded to one complete 32-byte word.
+        return is_array($result) && !isset($result['error'])
+            && isset($result['result']) && is_string($result['result'])
+            && strtolower($result['result']) === EIP1271_MAGICVALUE . str_repeat('0', 56);
+    } catch (\Throwable $e) {
         return false;
     }
-
-    $magicValue = $result["magicValue"];
-
-    return $magicValue == EIP1271_MAGICVALUE;
 }

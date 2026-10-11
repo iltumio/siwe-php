@@ -36,6 +36,7 @@ final class MessageVerificationTest extends TestCase
             "nonce" => $nonce,
         ), array(
             "suppressExceptions" => $suppressExceptions,
+            "providerUrl" => "",
         ));
 
         return $promise;

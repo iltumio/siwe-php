@@ -6,8 +6,9 @@ use GuzzleHttp\Promise\Promise;
 use Carbon\Carbon;
 use Error;
 
-require __DIR__ . "/utils.php";
-require __DIR__ . "/constants.php";
+require_once __DIR__ . "/utils.php";
+require_once __DIR__ . "/constants.php";
+require_once __DIR__ . "/siwe-parser/SiweParser.php";
 
 class SiweMessage
 {
@@ -23,6 +24,7 @@ class SiweMessage
     public $notBefore = null;
     public $requestId = null;
     public $resources = [];
+    private bool $resourcesHeaderPresent = false;
 
     function __construct($param)
     {
@@ -30,8 +32,12 @@ class SiweMessage
             $parser = new SiweParser();
 
             $parsedMessage = $parser->parse($param);
+            $this->resourcesHeaderPresent = array_key_exists("resources", $parsedMessage);
             $this->fromParsedMessage($parsedMessage);
         } else {
+            if (!is_array($param)) {
+                throw new \InvalidArgumentException("Expected a SIWE string or an array of fields.");
+            }
             $this->fromParsedMessage($param);
         }
 
@@ -61,7 +67,15 @@ class SiweMessage
         }
 
         if (isset($parsedMessage["chainId"])) {
-            $this->chainId = intval($parsedMessage["chainId"], 10);
+            if (!is_int($parsedMessage['chainId'])
+                && !(is_string($parsedMessage['chainId']) && ctype_digit($parsedMessage['chainId']))) {
+                throw new \InvalidArgumentException('Chain ID must be a positive integer.');
+            }
+            $chainId = filter_var($parsedMessage['chainId'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($chainId === false) {
+                throw new \InvalidArgumentException('Chain ID must be a positive integer within the PHP integer range.');
+            }
+            $this->chainId = $chainId;
         }
 
         if (isset($parsedMessage["nonce"])) {
@@ -88,7 +102,7 @@ class SiweMessage
             $this->resources = $parsedMessage["resources"];
         }
 
-        if (!$this->nonce) {
+        if (!array_key_exists("nonce", $parsedMessage)) {
             $this->nonce = generateNonce();
         }
     }
@@ -137,20 +151,20 @@ class SiweMessage
             array_push($suffixArray, $notBeforeField);
         }
 
-        if ($this->requestId) {
+        if ($this->requestId !== null) {
             $requestIdField = "Request ID: $this->requestId";
             array_push($suffixArray, $requestIdField);
         }
 
-        if (is_array($this->resources) && count($this->resources) > 0) {
-            $resourcesField = toResourcesString($this->resources);
+        if (count($this->resources) > 0 || $this->resourcesHeaderPresent) {
+            $resourcesField = $this->resources ? toResourcesString($this->resources) : "Resources:";
             array_push($suffixArray, $resourcesField);
         }
 
         $suffix = implode("\n", $suffixArray);
 
         $prefix .= "\n\n";
-        if ($this->statement) {
+        if ($this->statement !== null && $this->statement !== "") {
             $prefix = $prefix . $this->statement . "\n";
         }
 
@@ -167,7 +181,7 @@ class SiweMessage
         }
     }
 
-    function verify($params, $opts = [])
+    function verify(array $params, array $opts = [])
     {
         $promise = new Promise(function () use (&$promise, $params, $opts) {
             $fail = function ($result) use (&$promise, $opts) {
@@ -178,16 +192,33 @@ class SiweMessage
                 }
             };
 
+            try {
+                $this->validateMessage();
+            } catch (\Throwable $e) {
+                return $fail(['success' => false, 'data' => $this, 'error' => $e]);
+            }
+            $invalidOptions = checkInvalidKeys($opts, ['suppressExceptions', 'providerUrl']);
+            if ($invalidOptions) {
+                return $fail(['success' => false, 'data' => $this, 'error' => new Error('Invalid verification options.')]);
+            }
+            if (isset($opts['providerUrl']) && !is_string($opts['providerUrl'])) {
+                return $fail(['success' => false, 'data' => $this, 'error' => new Error('Invalid provider URL.')]);
+            }
+
             $invalidParams = checkInvalidKeys($params, VerifyParamsKeys);
 
             if (count($invalidParams) > 0) {
                 return $fail(array(
                     "success" => false,
                     "data" => $this,
-                    "error" => new Error(implode(", ", $invalidParams) . " is/are not valid key(s) for VerifyOpts."),
+                    "error" => new Error(implode(", ", $invalidParams) . " is/are not valid key(s) for VerifyParams."),
                 ));
             }
 
+            if (!isset($params['signature']) || !is_string($params['signature'])
+                || !preg_match('/\A0x(?:[0-9a-fA-F]{2})*\z/', $params['signature'])) {
+                return $fail(['success' => false, 'data' => $this, 'error' => new Error('Invalid signature.')]);
+            }
             $signature = $params["signature"];
             $domain = "";
             $nonce = "";
@@ -205,7 +236,7 @@ class SiweMessage
                 $time = $params["time"];
             }
 
-            if ($domain && $domain != $this->domain) {
+            if (array_key_exists("domain", $params) && $domain !== $this->domain) {
                 return $fail(array(
                     "success" => false,
                     "data" => $this,
@@ -213,7 +244,7 @@ class SiweMessage
                 ));
             }
 
-            if ($nonce && $nonce != $this->nonce) {
+            if (array_key_exists("nonce", $params) && $nonce !== $this->nonce) {
                 return $fail(array(
                     "success" => false,
                     "data" => $this,
@@ -222,12 +253,15 @@ class SiweMessage
             }
 
             /** Check time or now */
+            if (array_key_exists('time', $params) && !isValidISO8601Date($time)) {
+                return $fail(['success' => false, 'data' => $this, 'error' => new Error('Invalid verification time.')]);
+            }
             $checkTime = $time ? new Carbon($time) : new Carbon();
 
             /** Message not expired */
             if ($this->expirationTime) {
                 $expirationTime = new Carbon($this->expirationTime);
-                if ($checkTime->getTimestamp() >= $expirationTime->getTimestamp()) {
+                if ($checkTime >= $expirationTime) {
                     return $fail(array(
                         "success" => false,
                         "data" => $this,
@@ -239,7 +273,7 @@ class SiweMessage
             /** Message is valid already */
             if ($this->notBefore) {
                 $notBefore = new Carbon($this->notBefore);
-                if ($checkTime->getTimestamp() < $notBefore->getTimestamp()) {
+                if ($checkTime < $notBefore) {
                     return $fail(array(
                         "success" => false,
                         "data" => $this,
@@ -250,7 +284,7 @@ class SiweMessage
 
             try {
                 $EIP4361Message = $this->prepareMessage();
-            } catch (Error $e) {
+            } catch (\Throwable $e) {
                 return $fail(array(
                     "success" => false,
                     "data" => $this,
@@ -261,13 +295,9 @@ class SiweMessage
             /** Recover address from signature */
             try {
                 $addr = verifyMessage($EIP4361Message, $signature);
-            } catch (Error $e) {
-                return $fail(array(
-                    "success" => false,
-                    "data" => $this,
-                    "error" => $e,
-                    "error" => new Error("Unable to recover address")
-                ));
+            } catch (\Throwable $e) {
+                // Contract signatures need not have the EOA length or recovery format.
+                $addr = '';
             }
 
             if (strtolower($addr) == strtolower($this->address)) {
@@ -276,10 +306,7 @@ class SiweMessage
                     "data" => $this,
                 ));
             } else {
-                $providerUrl = DEFAULT_PROVIDER_URL;
-                if (isset($opts["providerUrl"])) {
-                    $providerUrl = $opts["providerUrl"];
-                }
+                $providerUrl = $opts['providerUrl'] ?? ($this->chainId === 1 ? DEFAULT_PROVIDER_URL : '');
 
                 $isValid = checkContractWalletSignature($this, $signature, $providerUrl);
 
@@ -314,38 +341,60 @@ class SiweMessage
         /* `domain` check. */
         if (
             !isset($this->domain)
-            || strlen($this->domain) == 0
-            || !preg_match("/[^#?]*/", $this->domain)
+            || !is_string($this->domain)
+            || !preg_match('/\A[^\s\/?#]+\z/', $this->domain)
+            || !is_string(parse_url('https://' . $this->domain, PHP_URL_HOST))
         ) {
-            throw new \Exception("$this->domain to be a valid domain.");
+            throw new \InvalidArgumentException("Invalid domain.");
         }
 
         /* EIP-55 `address` check. */
         if (!isEIP55Address($this->address)) {
-            throw new \Exception("$this->address is not a valid EIP-55 address.");
+            throw new \InvalidArgumentException("Invalid EIP-55 address.");
         }
 
         /** Check if the URI is valid. */
         if (
             !isset($this->uri)
+            || !is_string($this->uri)
             || strlen($this->uri) == 0
             || filter_var($this->uri, FILTER_VALIDATE_URL) === false
         ) {
-            throw new \Exception("$this->uri to be a valid URI.");
+            throw new \InvalidArgumentException("Invalid URI.");
         }
 
         /** Check if the version is 1. */
         if ($this->version != "1") {
-            throw new \Exception("$this->version to be 1.");
+            throw new \InvalidArgumentException("Version must be 1.");
         }
 
         /** Check if the nonce is alphanumeric and bigger then 8 characters */
         if (
             !isset($this->nonce)
-            || strlen($this->nonce) < 8
-            || !preg_match("/[a-zA-Z0-9]{8,}/", $this->nonce)
+            || !is_string($this->nonce)
+            || !preg_match("/\A[a-zA-Z0-9]{8,}\z/", $this->nonce)
         ) {
-            throw new \Exception("$this->nonce to be a valid nonce.");
+            throw new \InvalidArgumentException("Nonce must contain at least 8 alphanumeric characters.");
+        }
+
+        if ($this->chainId !== null && (!is_int($this->chainId) || $this->chainId < 1)) {
+            throw new \InvalidArgumentException('Chain ID must be a positive integer.');
+        }
+        if ($this->statement !== null && (!is_string($this->statement)
+            || preg_match('/[^\x20-\x7E]/', $this->statement))) {
+            throw new \InvalidArgumentException('Statement must be a single line.');
+        }
+        if ($this->requestId !== null && (!is_string($this->requestId)
+            || !preg_match("/\A(?:[a-zA-Z0-9._~!$&'()*+,;=:@-]|%[0-9a-fA-F]{2})*\z/", $this->requestId))) {
+            throw new \InvalidArgumentException('Invalid request ID.');
+        }
+        if (!is_array($this->resources)) {
+            throw new \InvalidArgumentException('Resources must be an array of URIs.');
+        }
+        foreach ($this->resources as $resource) {
+            if (!is_string($resource) || filter_var($resource, FILTER_VALIDATE_URL) === false) {
+                throw new \InvalidArgumentException('Invalid resource URI.');
+            }
         }
 
         /** `issuedAt` conforms to ISO-8601 and is a valid date. */
@@ -353,15 +402,15 @@ class SiweMessage
             isset($this->issuedAt)
             && !isValidISO8601Date($this->issuedAt)
         ) {
-            throw new \Exception("$this->issuedAt to be a valid ISO-8601 date.");
+            throw new \InvalidArgumentException("Invalid Issued At date.");
         }
 
         /** `expirationTime` conforms to ISO-8601 and is a valid date. */
         if (
             isset($this->expirationTime)
-            && !isValidISO8601Date($this->expirationTime, "expiration")
+            && !isValidISO8601Date($this->expirationTime)
         ) {
-            throw new \Exception("$this->expirationTime to be a valid ISO-8601 date.");
+            throw new \InvalidArgumentException("Invalid Expiration Time date.");
         }
 
         /** `notBefore` conforms to ISO-8601 and is a valid date. */
@@ -369,7 +418,7 @@ class SiweMessage
             isset($this->notBefore)
             && !isValidISO8601Date($this->notBefore)
         ) {
-            throw new \Exception("$this->notBefore to be a valid ISO-8601 date.");
+            throw new \InvalidArgumentException("Invalid Not Before date.");
         }
     }
 }
