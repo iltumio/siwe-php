@@ -1,5 +1,15 @@
 # SIWE PHP
 
+<p align="center">
+  <img src="docs/assets/siwe-php-logo.png" alt="SIWE PHP — Sign-In with Ethereum for PHP" width="560">
+</p>
+
+[![Tests](https://github.com/iltumio/siwe-php/actions/workflows/tests.yml/badge.svg)](https://github.com/iltumio/siwe-php/actions/workflows/tests.yml)
+[![Latest version](https://img.shields.io/packagist/v/iltumio/siwe-php)](https://packagist.org/packages/iltumio/siwe-php)
+[![Total downloads](https://img.shields.io/packagist/dt/iltumio/siwe-php)](https://packagist.org/packages/iltumio/siwe-php)
+[![PHP requirement](https://img.shields.io/badge/PHP-%5E8.3-777BB4?logo=php&logoColor=white)](composer.json)
+[![License](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue)](LICENSE)
+
 Sign-In with Ethereum (SIWE) message generation, parsing and signature verification in PHP.
 
 ## Requirements
