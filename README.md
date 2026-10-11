@@ -12,6 +12,12 @@
 
 Sign-In with Ethereum (SIWE) message generation, parsing and signature verification in PHP.
 
+## Documentation
+
+Read the [web documentation](https://iltumio.github.io/siwe-php/) for guides, authentication flow and the API reference.
+
+For AI coding agents: [agent prompts](https://iltumio.github.io/siwe-php/agents/), [llms.txt](https://iltumio.github.io/siwe-php/llms.txt) and [full-text documentation](https://iltumio.github.io/siwe-php/llms-full.txt).
+
 ## Requirements
 
 PHP 8.3 or later, with the GMP, mbstring, ctype and JSON extensions.
@@ -90,6 +96,14 @@ mainnet contract-wallet integration fixtures:
 
 ```bash
 SIWE_RPC_URL=https://your-mainnet-rpc.example ./run-tests.sh
+```
+
+To work on the VitePress documentation (Node.js 22 or later):
+
+```bash
+npm ci
+npm run docs:dev
+npm run docs:build
 ```
 
 ## Disclaimer

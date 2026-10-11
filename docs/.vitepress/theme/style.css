@@ -1,0 +1,13 @@
+:root {
+  --vp-c-brand-1: #7250d0;
+  --vp-c-brand-2: #6340c0;
+  --vp-c-brand-3: #5633aa;
+  --vp-c-brand-soft: rgba(114, 80, 208, .14);
+}
+.dark {
+  --vp-c-brand-1: #b49aff;
+  --vp-c-brand-2: #9d7cf0;
+  --vp-c-brand-3: #7250d0;
+}
+.VPHero .image-container { transform: none; }
+.VPHero .image-src { max-width: 100%; max-height: 180px; }

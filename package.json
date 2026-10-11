@@ -1,0 +1,16 @@
+{
+  "name": "siwe-php-docs",
+  "private": true,
+  "scripts": {
+    "docs:dev": "npm run docs:prepare && vitepress dev docs",
+    "docs:build": "npm run docs:prepare && vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "docs:prepare": "node scripts/generate-llms.mjs"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  },
+  "overrides": {
+    "vite": "^6.4.4"
+  }
+}
