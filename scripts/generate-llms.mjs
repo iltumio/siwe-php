@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 
 const base = 'https://iltumio.github.io/siwe-php/'
 const pages = [
@@ -24,7 +24,8 @@ Use trusted server-configured RPC endpoints for the permitted chain only.
 Constructor failures are not suppressed by verification options.
 The library has not undergone a formal security audit.
 `
-await mkdir('docs/public', { recursive: true })
+await mkdir('docs/public/assets', { recursive: true })
+await copyFile('docs/assets/siwe-php-logo.png', 'docs/public/assets/siwe-php-logo.png')
 await writeFile('docs/public/llms.txt', intro + '\n## Documentation\n\n' + pages.map(([path, title, detail]) => `- [${title}](${base}${path}.html): ${detail}`).join('\n') + `\n\n## Full text\n\n- [Complete documentation](${base}llms-full.txt)\n- [Source repository](https://github.com/iltumio/siwe-php)\n`)
 const sections = await Promise.all(pages.map(async ([path]) => {
   const content = await readFile(`docs/${path}.md`, 'utf8')

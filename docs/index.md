@@ -5,7 +5,7 @@ hero:
   text: Ethereum sign-in. Native PHP.
   tagline: Generate, parse and verify Sign-In with Ethereum messages for externally owned accounts and smart contract wallets.
   image:
-    src: ./assets/siwe-php-logo.png
+    src: /assets/siwe-php-logo.png
     alt: SIWE PHP
   actions:
     - theme: brand
